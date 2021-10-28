@@ -1,0 +1,148 @@
+Task 1:-
+
+SELECT * FROM (SELECT ROW_NUMBER() OVER (ORDER BY VIEWCOUNT DESC) AS RowNumber, Id, PostTypeId, AcceptedAnswerId, ParentId, CreationDate, DeletionDate, Score, ViewCount, OwnerUserId, OwnerDisplayName, LastEditorUserId, LastEditorDisplayName, LastEditDate, LastActivityDate, Title, Tags, AnswerCount, CommentCount, FavoriteCount, ClosedDate, CommunityOwnedDate, ContentLicense FROM POSTS WHERE VIEWCOUNT IS NOT NULL) AS POSTSTABLE WHERE RowNumber BETWEEN 1 AND 50001
+SELECT * FROM (SELECT ROW_NUMBER() OVER (ORDER BY VIEWCOUNT DESC) AS RowNumber, Id, PostTypeId, AcceptedAnswerId, ParentId, CreationDate, DeletionDate, Score, ViewCount, OwnerUserId, OwnerDisplayName, LastEditorUserId, LastEditorDisplayName, LastEditDate, LastActivityDate, Title, Tags, AnswerCount, CommentCount, FavoriteCount, ClosedDate, CommunityOwnedDate, ContentLicense FROM POSTS WHERE VIEWCOUNT IS NOT NULL) AS POSTSTABLE WHERE RowNumber BETWEEN 50001 AND 100000
+SELECT * FROM (SELECT ROW_NUMBER() OVER (ORDER BY VIEWCOUNT DESC) AS RowNumber, Id, PostTypeId, AcceptedAnswerId, ParentId, CreationDate, DeletionDate, Score, ViewCount, OwnerUserId, OwnerDisplayName, LastEditorUserId, LastEditorDisplayName, LastEditDate, LastActivityDate, Title, Tags, AnswerCount, CommentCount, FavoriteCount, ClosedDate, CommunityOwnedDate, ContentLicense FROM POSTS WHERE VIEWCOUNT IS NOT NULL) AS POSTSTABLE WHERE RowNumber BETWEEN 100001 AND 150000
+SELECT * FROM (SELECT ROW_NUMBER() OVER (ORDER BY VIEWCOUNT DESC) AS RowNumber, Id, PostTypeId, AcceptedAnswerId, ParentId, CreationDate, DeletionDate, Score, ViewCount, OwnerUserId, OwnerDisplayName, LastEditorUserId, LastEditorDisplayName, LastEditDate, LastActivityDate, Title, Tags, AnswerCount, CommentCount, FavoriteCount, ClosedDate, CommunityOwnedDate, ContentLicense FROM POSTS WHERE VIEWCOUNT IS NOT NULL) AS POSTSTABLE WHERE RowNumber BETWEEN 150001 AND 200000
+
+Cleaning the dataset:-
+
+import pandas as pd
+
+df1 = pd.read_csv("gs://dataproc-staging-us-central1-359314101846-x5guqtzg/data_hash/QueryResults1.csv")
+df2 = pd.read_csv("gs://dataproc-staging-us-central1-359314101846-x5guqtzg/data_hash/QueryResults2.csv")
+df3 = pd.read_csv("gs://dataproc-staging-us-central1-359314101846-x5guqtzg/data_hash/QueryResults3.csv")
+df4 = pd.read_csv("gs://dataproc-staging-us-central1-359314101846-x5guqtzg/data_hash/QueryResults4.csv")
+
+df1 = df1.append(df2)
+df1 = df1.append(df3)
+df1 = df1.append(df4)
+len(df1)
+
+df1['PostBodyData'] = df1['PostBodyData'].str.replace(r'<[^<>]*>',"",regex=True) # Removing Html tags
+df1['PostBodyData'] = df1['PostBodyData'].str.replace(r'([^\w])'," ", regex=True) # Removing Punctuations
+df1['PostBodyData'] = df1['PostBodyData'].str.replace(r'\n'," ",regex=True) # Removing New Line
+df1['PostBodyData'] = df1['PostBodyData'].str.replace(r'\d+'," ",regex=True) # Removing Digits
+
+df1['PostTitle']=df1['PostTitle'].str.replace(r'<[^<>]*>',"",regex=True) # Removing Html tags
+df1['PostTitle']=df1['PostTitle'].str.replace(r'([^\w])'," ", regex=True) # Removing Punctuations
+df1['PostTitle']=df1['PostTitle'].str.replace(r'\n'," ",regex=True) # Removing New Line
+df1['PostTitle']=df1['PostTitle'].str.replace(r'\d+'," ",regex=True) # Removing Digits
+------------------------------------------------------------------------------------------------------
+
+Task 2:-
+
+CREATE TABLE IF NOT EXISTS HashStackExchangePosts
+(Identifier int,
+PostTypeIdentifier tinyint,
+AcceptedAnswerIdentifier int,
+ParentIdentifier int,
+PostCreatedDate timestamp,
+PostDeletedDate timestamp,
+PostScore int,
+PostViewCount int,
+PostBodyData string,
+OwnerPostIdentifier int,
+OwnerPostName varchar(40),
+LastEditedPostUserId int,
+LastEditedPostName varchar(40),
+LastEditedPostDate timestamp,
+LastActivityPostDate timestamp,
+PostTitle varchar (250),
+PostTags varchar (250),
+PostAnsCount int,
+CommentedPostCount int,
+FavoritePostCount int,
+ClosedPostDate timestamp,
+OwnedPostDate timestamp,
+ContentPostLicense varchar (12))
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde';
+
+LOAD DATA INPATH 'gs://dataproc-staging-us-central1-359314101846-x5guqtzg/data_hash/cleanned_data_hash.csv' INTO TABLE HashStackExchangePosts;
+
+CREATE VIEW IF NOT EXISTS HashStackExchangeView as
+Select cast(Identifier as int) as Identifier,
+cast(PostTypeIdentifier as tinyint) as PostTypeIdentifier,
+AcceptedAnswerIdentifier,
+ParentIdentifier,
+PostCreatedDate,
+PostDeletedDate,
+cast(PostScore as int) as PostScore,
+cast(PostViewCount as int) as PostViewCount,
+PostBodyData,
+cast(OwnerPostIdentifier as int) as OwnerPostIdentifier,
+OwnerPostName as OwnerPostName,
+LastEditedPostUserId,
+LastEditedPostName,
+LastEditedPostDate,
+LastActivityPostDate,
+PostTitle,
+PostTags,
+PostAnsCount,
+CommentedPostCount,
+FavoritePostCount,
+ClosedPostDate,
+OwnedPostDate,
+ContentPostLicense from HashStackExchangePosts;
+
+----------------------------------------------------------------------------------------------------------
+Task 3:-
+
+2.2.1. The top 10 posts by score:-
+SELECT Identifier, PostTitle, PostScore from HashStackExchangeView ORDER BY PostScore DESC LIMIT 10;
+
+2.2.2. The top 10 users by post score:-
+SELECT OwnerPostIdentifier,OwnerPostName,sum(PostScore) as PostScore from HashStackExchangeView GROUP BY OwnerPostIdentifier, OwnerPostName ORDER BY PostScore DESC LIMIT 10;
+
+2.2.3. The number of distinct users, who used the word “cloud” in one of their posts:-
+SELECT COUNT(DISTINCT OwnerPostIdentifier) as TotalDistinctUsers FROM HashStackExchangeView WHERE PostTitle LIKE '% cloud %' OR PostBodyData LIKE '% cloud %';
+
+------------------------------------------------------------------------------------------------------------
+Task 4:-
+Use Mapreduce/Pig/Hive to calculate the per-user TF-IDF of the top 10 terms for each of the top 10 users 
+
+sudo apt-get install -y libsasl2-dev gcc python-dev
+!pip install sasl
+!pip install thrift
+!pip install thrift-sasl
+!pip install Pyhive
+!pip install tabulate
+
+from pyhive import hive
+from tabulate import tabulate
+import pandas as pd
+
+conn = hive.Connection(host='localhost',port=10000,username='hashmeetsingh_obhan2',password='3834000386462947050',database='default',auth='CUSTOM')
+cur = conn.cursor()
+cur.execute('SELECT OwnerPostIdentifier,OwnerPostName,sum(PostScore) as PostScore from HashStackExchangeView GROUP BY OwnerPostIdentifier, OwnerPostName ORDER BY PostScore DESC LIMIT 10')
+result = cur.fetchall()
+
+top_users = []
+for userIdList in result:
+    top_users.append(userIdList[0])
+df = pd.read_sql(f'SELECT DISTINCT(OwnerPostIdentifier), OwnerPostName, PostTitle, PostBodyData FROM HashStackExchangeView WHERE OwnerPostIdentifier IN {tuple(top_users)} ORDER BY OwnerPostIdentifier', conn)
+
+df["ownerpostidentifier"] = df["posttitle"] + df["postbodydata"]
+top_10_username = list(df["ownerpostname"].unique())
+top_10_username
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# Calculate sum() of TF-IDF and get top 10 words with highest TF-IDF and select only those columns
+def calculate_tf_idf(df):
+    vectorizer = TfidfVectorizer(stop_words='english', lowercase=True) # Remove Stop Words
+    response = vectorizer.fit_transform(df["ownerpostidentifier"]) # Use title field for TF/IDF
+    df_tfidf_sklearn = pd.DataFrame(response.toarray(),columns=vectorizer.get_feature_names())
+    total_tf_idf = df_tfidf_sklearn.sum(axis = 0) # Remove sum of TF/IDF for getting top 10 most used words
+    top_10_list = total_tf_idf.nlargest(10) # Get top 10 words per user
+    top_10_words = list(top_10_list.index) # Get list of top 10 words
+    df_tfidf_sklearn[top_10_words] # Select only top 10 words as column
+    return df_tfidf_sklearn[top_10_words]
+	
+for each_user in top_10_username: ## Iterate over all top 10 users
+    filtered_data = df[(df['ownerpostname']==each_user)] # Filter data only for selected user
+    tf_idf_df = calculate_tf_idf(filtered_data) # pass on to above function
+    print("For Username ID TF/IDF table : "+each_user)
+    tf_idf_df.insert(0, 'usernameid', each_user)# attach username ID field to dataframe
+    display(tf_idf_df)
+	
